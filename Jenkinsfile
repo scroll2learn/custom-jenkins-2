@@ -1,37 +1,50 @@
 node {
     stage('Checkout') {
         git branch: 'main',
-        url: 'https://github.com/scroll2learn/custom-jenkins-2.git'
+            url: 'https://github.com/scroll2learn/custom-jenkins-2.git'
     }
 
     stage('Install Dependencies') {
         sh '''
+            echo "Creating virtual environment"
             python3 -m venv .venv
-            . venv/bin/activate
-            pip install -r requirements.txt
+
+            echo "Upgrading pip"
+            .venv/bin/python -m pip install --upgrade pip
+
+            echo "Installing dependencies"
+            .venv/bin/python -m pip install -r requirements.txt
         '''
     }
 
     stage('Run Tests') {
         sh '''
-            . venv/bin/activate
-            pytest -v
+            echo "Running pytest"
+            .venv/bin/python -m pytest -v
         '''
     }
 
-    stage(' Docker') {
+    stage('Deploy Application') {
         sh '''
-            pkill -f "python3 app.py" || true
+            echo "Stopping old application, if running"
+            pkill -f "python.*app.py" || true
 
-            . venv/bin/activate
+            echo "Starting Python application"
+            nohup .venv/bin/python app.py > app.log 2>&1 &
 
-            nohup python3 app.py > app.log 2>&1 &
+            echo $! > app.pid
         '''
     }
 
     stage('Verify Deployment') {
         sh '''
+            echo "Waiting for application to start"
             sleep 5
+
+            echo "Application log:"
+            cat app.log || true
+
+            echo "Testing application"
             curl -f http://localhost:5000
         '''
     }
